@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>three.js vr - panorama with depth</title>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, user-scalable=no"
+    />
+    <link type="text/css" rel="stylesheet" href="main.css" />
+  </head>
+  <body>
+    <div id="container"></div>
+    <script
+      async
+      src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"
+    ></script>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three/examples/jsm/"
+        }
+      }
+    </script>
+
+    <script type="module">
+      import * as THREE from "three";
+
+      import { VRButton } from "three/addons/webxr/VRButton.js";
+
+      import { RGBELoader } from "three/addons/loaders/RGBELoader.js";
+
+      import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+      import { WebXRController } from "three/addons/webxr/WebXRManager.js";
+
+      import { XRControllerModelFactory } from "https://cdn.jsdelivr.net/npm/three@0.119.1/examples/jsm/webxr/XRControllerModelFactory.min.js";
+
+      let camera, scene, renderer, sphere, clock;
+
+      init();
+      animate();
+
+      function init() {
+        const container = document.getElementById("container");
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x101010);
+        const light = new THREE.AmbientLight(0xffffff, 1);
+        scene.add(light);
+        camera = new THREE.PerspectiveCamera(
+          75,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          1000
+        );
+        scene.add(camera);
+
+        // Create the panoramic sphere geometery
+        const panoSphereGeo = new THREE.SphereGeometry(6, 256, 256);
+
+        // Create the panoramic sphere material
+        const panoSphereMat = new THREE.MeshStandardMaterial({
+          side: THREE.BackSide,
+          displacementScale: -4.0,
+        });
+
+        // Create the panoramic sphere mesh
+        sphere = new THREE.Mesh(panoSphereGeo, panoSphereMat);
+
+        // Load and assign the texture and depth map
+        const manager = new THREE.LoadingManager();
+        const loader = new THREE.TextureLoader(manager);
+
+        loader.load("models/burnt_warehouse_4k.jpeg", function (texture) {
+          texture.minFilter = THREE.NearestFilter;
+          texture.generateMipmaps = false;
+          sphere.material.map = texture;
+        });
+
+        //depth
+
+        /*loader.load("models/theta 360 room.jpeg", function (depth) {
+        depth.minFilter = THREE.NearestFilter;
+        depth.generateMipmaps = false;
+        sphere.material.displacementMap = depth;
+        });*/
+
+        // On load complete add the panoramic sphere to the scene
+        manager.onLoad = function () {
+          scene.add(sphere);
+        };
+
+        renderer = new THREE.WebGLRenderer();
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.xr.enabled = true;
+        renderer.xr.setReferenceSpaceType("local");
+        container.appendChild(renderer.domElement);
+
+        document.body.appendChild(renderer.domElement);
+        document.body.appendChild(VRButton.createButton(renderer));
+
+        renderer.toneMapping = THREE.LinearToneMapping;
+        renderer.outputEncoding = THREE.sRGBEncoding;
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+
+        controls.minDistance = 1;
+        controls.maxDistance = 50;
+
+        camera.position.z = 5;
+        camera.position.y = 2;
+        camera.position.x = 2;
+        controls.update();
+
+        const controllerGrip1 = renderer.xr.getControllerGrip(0);
+
+        const model1 =
+          controllerModelFactory.createControllerModel(controllerGrip1);
+        controllerGrip1.add(model1);
+
+        scene.add(controllerGrip1);
+        renderer.xr.getController(0);
+        renderer.xr.getControllerGrip(0);
+
+        const axesHelper = new THREE.AxesHelper(5);
+        scene.add(axesHelper);
+
+        camera.lookAt(axesHelper.position);
+
+        window.addEventListener("resize", onWindowResize);
+
+        //
+
+        window.addEventListener("resize", onWindowResize);
+      }
+
+      function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+      renderer.setAnimationLoop(function () {
+        renderer.render(scene, camera);
+      });
+
+      const someObject = new Mesh(geometry, material);
+
+      someObject.position.set(0, 0.2, 0);
+
+      controller1.add(someObject);
+
+      function animate() {}
+
+      function render() {
+        renderer.render(scene, camera);
+      }
+    </script>
+  </body>
+</html>
