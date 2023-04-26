@@ -202,29 +202,10 @@
   </body>
 </html>
 
-To implement the transition between the two textures when pressing a button in
-VR, you can modify the onSelectStart function that is called when a controller
-button is pressed. <br />
-First, you need to declare a variable to store the current texture index, for
-example: <br />
-let currentTextureIndex = 0; <br />
-Then, inside the onSelectStart function, you can check if the button that was
-pressed is the one you want to use for the texture transition, for example:
-<br />
 function onSelectStart(event) { if
 (event.inputSource.gamepad.buttons[0].pressed) { // change texture
 currentTextureIndex = (currentTextureIndex + 1) % 2; // toggle between 0 and 1
 const loader = new THREE.TextureLoader(manager);
 loader.load(`models/kirjasto(${currentTextureIndex + 1}).jpg`, function
 (texture) { texture.minFilter = THREE.NearestFilter; texture.generateMipmaps =
-false; sphere.material.map = texture; }); } } <br />
-In this example, we assume that you want to use the first button of the
-controller to trigger the texture transition. The currentTextureIndex variable
-is used to keep track of the current texture. We toggle between texture 1 and
-texture 2 by incrementing the index and taking the modulus with 2. Then, we
-create a new texture loader and load the appropriate texture based on the
-current index. Finally, we set the loaded texture as the material map of the
-sphere. Note that you need to declare the currentTextureIndex variable outside
-the init function and make it available to the onSelectStart function. Also note
-that you should use loader1.load for the second texture, instead of loader.load,
-which was used for the first texture in the original code.
+false; sphere.material.map = texture; }); } }
