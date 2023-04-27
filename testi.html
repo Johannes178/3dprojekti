@@ -60,7 +60,7 @@
       // Load the initial panoramic image
       const loader = new RGBELoader();
       loader.setDataType(THREE.HalfFloatType);
-      loader.load("models/burnt_warehouse_4k.hdr", function (texture) {
+      loader.load("models/kirjasto(1).jpg", function (texture) {
         texture.mapping = THREE.EquirectangularReflectionMapping;
         const envMap = pmremGenerator.fromEquirectangular(texture).texture;
         scene.background = envMap;
@@ -71,7 +71,7 @@
 
       // Load the second panoramic image
       loader.setDataType(THREE.FloatType);
-      loader.load("models/burnt_warehouse_4k.hdr", function (texture) {
+      loader.load("models/kirjasto(2).jpg", function (texture) {
         texture.mapping = THREE.EquirectangularReflectionMapping;
         const envMap = pmremGenerator.fromEquirectangular(texture).texture;
         const cubeMap = envMap;
