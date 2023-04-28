@@ -24,43 +24,38 @@
         }
       }
     </script>
-
     <script type="module">
       import * as THREE from "three";
+
       import { VRButton } from "three/addons/webxr/VRButton.js";
+
       import { RGBELoader } from "three/addons/loaders/RGBELoader.js";
+
       import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
       import { XRControllerModelFactory } from "three/addons/webxr/XRControllerModelFactory.js";
 
-      // Set up variables
-      let camera,
-        scene,
-        renderer,
-        sphere,
-        clock,
-        controller1,
-        controller2,
-        raycaster;
-      const intersected = [];
-      const tempMatrix = new THREE.Matrix4();
-      let group;
+      // Initialize variables
+      let camera, scene, renderer, controls, controller1, controller2;
+      let currentPhoto = 1;
+      const photos = [
+        "models/kirjasto1.jpg",
+        "models/kirjasto2.jpg",
+        "models/kirjasto3.jpg",
+        "models/kirjasto4.jpg",
+        "models/kirjasto5.jpg",
+        "models/kirjasto1.jpg",
+      ];
+      let baseReferenceSpace;
 
-      // Initialize the scene, camera, lighting, and panoramic sphere
       init();
+      animate();
 
-      // Create a THREE.Group instance named group and a container constant variable to hold the DOM element with the ID "container"
       function init() {
-        group = new THREE.Group();
-        const container = document.getElementById("container");
-
-        // Create a THREE.Scene instance, set its background color to black, and add an ambient light with white color and intensity of 1
+        // Set up scene
         scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x101010);
-        const light = new THREE.AmbientLight(0xffffff, 1);
-        scene.add(light);
 
-        // Create a THREE.PerspectiveCamera instance with a field of view of 75 degrees, aspect ratio to the width and height of the window,
-        // a near plane of 0.1, and a far plane of 1000. Add the camera to the scene.
+        // Set up camera
         camera = new THREE.PerspectiveCamera(
           75,
           window.innerWidth / window.innerHeight,
@@ -69,168 +64,89 @@
         );
         scene.add(camera);
 
-        // Create a panoramic sphere using THREE.SphereGeometry() and THREE.MeshStandardMaterial(), set its displacementScale to -4.0,
-        // and assign it to the sphere variable
-        const panoSphereGeo = new THREE.SphereGeometry(6, 256, 256);
-        const panoSphereMat = new THREE.MeshStandardMaterial({
-          side: THREE.BackSide,
-          displacementScale: -4.0,
-        });
-        sphere = new THREE.Mesh(panoSphereGeo, panoSphereMat);
-
-        // Load two images, create materials and meshes with THREE.TextureLoader() and THREE.MeshStandardMaterial(), and add them to the scene at positions (0, 0, 0) and (0, 0, -20) and so on.
-        const manager = new THREE.LoadingManager();
-        const loader1 = new THREE.TextureLoader(manager);
-        const loader2 = new THREE.TextureLoader(manager);
-
-        loader1.load("models/kirjasto(1).jpg", function (texture1) {
-          texture1.minFilter = THREE.NearestFilter;
-          texture1.generateMipmaps = false;
-          const sphereMaterial1 = new THREE.MeshStandardMaterial({
-            map: texture1,
-            side: THREE.BackSide,
-            displacementScale: -4.0,
-          });
-          const sphere1 = new THREE.Mesh(panoSphereGeo, sphereMaterial1);
-          sphere1.position.set(0, 0, 0);
-          scene.add(sphere1);
-        });
-        loader2.load("models/kirjasto(2).jpg", function (texture2) {
-          texture2.minFilter = THREE.NearestFilter;
-          texture2.generateMipmaps = false;
-          const sphereMaterial2 = new THREE.MeshStandardMaterial({
-            map: texture2,
-            side: THREE.BackSide,
-            displacementScale: -4.0,
-          });
-          const sphere2 = new THREE.Mesh(panoSphereGeo, sphereMaterial2);
-          sphere2.position.set(0, 0, -20);
-          scene.add(sphere2);
-        });
-        // On load complete adds the panoramic sphere to the scene
-        manager.onLoad = function () {
-          scene.add(sphere);
-        };
-        // The function then creates a THREE.WebGLRenderer() instance and assigns it to the renderer variable.
-        renderer = new THREE.WebGLRenderer();
-        // It sets the renderer's pixel ratio to the device's pixel ratio, sets its size to the window's width and height, and enables XR rendering.
-        renderer.setPixelRatio(window.devicePixelRatio);
+        // Set up renderer
+        renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.xr.enabled = true;
-        renderer.xr.setReferenceSpaceType("local");
-        // It adds the renderer's DOM element to the container element.
-        container.appendChild(renderer.domElement);
-
         document.body.appendChild(renderer.domElement);
         document.body.appendChild(VRButton.createButton(renderer));
+        renderer.xr.enabled = true;
 
-        renderer.toneMapping = THREE.LinearToneMapping;
-        renderer.outputEncoding = THREE.sRGBEncoding;
-        // It also creates a new OrbitControls instance, passing in the camera and renderer.domElement as arguments.
-        const controls = new OrbitControls(camera, renderer.domElement);
-        // Set minDistance and maxDistance controls to 1 and 50, position camera at (2, 2, 5), and update controls.        controls.minDistance = 1;
-        controls.maxDistance = 50;
-
-        camera.position.z = 5;
-        camera.position.y = 2;
-        camera.position.x = 2;
-        controls.update();
-        document.body.appendChild(VRButton.createButton(renderer));
-
-        // initVR() is called to initialize the VR controllers, their models, and the raycaster.
         initVR();
 
         function initVR() {
+          document.body.appendChild(VRButton.createButton(renderer));
           renderer.xr.enabled = true;
+          renderer.xr.addEventListener(
+            "sessionstart",
+            () => (baseReferenceSpace = renderer.xr.getReferenceSpace())
+          );
 
-          // The controllers are created with renderer.xr.getController(), and their event listeners are set to call onSelectStart() when they detect a selection start.
+          // controllers
+
           controller1 = renderer.xr.getController(0);
-          controller1.addEventListener("selectstart", onSelectStart);
+          controller1.addEventListener("selectstart", loadPhoto);
+          controller1.addEventListener("squeezestart", loadPhoto);
           scene.add(controller1);
 
           controller2 = renderer.xr.getController(1);
-          controller2.addEventListener("selectstart", onSelectStart);
+          controller2.addEventListener("selectstart", loadPhoto);
+          controller2.addEventListener("squeezestart", loadPhoto);
           scene.add(controller2);
-          // A XRControllerModelFactory is created, and a raycaster and axes helper are added to the scene.
+
+          controller1.addEventListener("selectstart", () => {
+            currentPhoto = (currentPhoto + 1) % photos.length;
+            loadPhoto(currentPhoto);
+          });
+
+          controller2.addEventListener("selectstart", () => {
+            currentPhoto = (currentPhoto + 1) % photos.length;
+            loadPhoto(currentPhoto);
+          });
+
+          renderer.xr.addEventListener("selectstart", () => {
+            currentPhoto = (currentPhoto + 1) % photos.length;
+            loadPhoto(currentPhoto);
+          });
+
           const controllerModelFactory = new XRControllerModelFactory();
-          raycaster = new THREE.Raycaster();
-          const axesHelper = new THREE.AxesHelper(5);
-          scene.add(axesHelper);
-          camera.lookAt(axesHelper.position);
-          //
+
+          // Set up controls
+          controls = new XRControllerModelFactory().createControllerModel(
+            renderer.xr.getController(0)
+          );
         }
-      }
-      // onSelectStart(event) is the function called when a selection is started.
-      function onSelectStart(event) {
-        console.log("onSelectStart called");
 
-        const controller = event.target;
-        // It retrieves the controller that initiated the event and uses the getIntersections(controller) function to determine which objects in group have been intersected by the raycaster.
-        const intersections = getIntersections(controller);
+        scene.add(controls);
 
-        if (intersections.length > 0) {
-          const intersection = intersections[0];
-          const object = intersection.object;
-          // If the intersected object is either sphere1 or sphere2, the reference space type is set to local,
-          // the visible sphere is hidden, and the corresponding child in group is made visible.
-          if (object.name === "sphere1") {
-            renderer.xr.setReferenceSpaceType("local");
-            sphere.visible = false;
-            group.visible = true;
-            group.children[0].visible = true;
-            group.children[1].visible = false;
-            controller.userData.selected = group.children[0];
-          } else if (object.name === "sphere2") {
-            renderer.xr.setReferenceSpaceType("local");
-            sphere.visible = false;
-            group.visible = true;
-            group.children[0].visible = false;
-            group.children[1].visible = true;
-            controller.userData.selected = group.children[1];
-          }
-        }
-      }
-      // getIntersections(controller) returns an array of objects that are intersected by the raycaster.
-      function getIntersections(controller) {
-        console.log("intersect called");
-
-        return raycaster.intersectObjects(group.children);
-      }
-      // animate() is the main loop of the program. It checks if the VR mode is active and renders the scene accordingly.
-      function animate() {
-        renderer.setAnimationLoop(render);
+        // Load first photo
+        loadPhoto(photos[currentPhoto]);
       }
 
-      function render() {
-        // Handles controller interactions
-        intersected.forEach((object) => {
-          object.rotation.x;
-          object.rotation.y;
+      function loadPhoto(index) {
+        const photo = photos[index];
+
+        // Remove previous photo
+        scene.remove(scene.children.find((obj) => obj.name === "photo"));
+
+        // Load new photo
+        new THREE.TextureLoader().load(photo, function (texture) {
+          const geometry = new THREE.SphereGeometry(500, 60, 40);
+          const material = new THREE.MeshBasicMaterial({
+            map: texture,
+            side: THREE.BackSide,
+          });
+          const sphere = new THREE.Mesh(geometry, material);
+          sphere.name = "photo";
+          scene.add(sphere);
         });
-
-        renderer.render(scene, camera);
       }
 
-      animate();
+      function animate() {
+        renderer.setAnimationLoop(() => {
+          renderer.render(scene, camera);
+        });
+      }
     </script>
   </body>
 </html>
-
-const loader3 = new THREE.TextureLoader(manager);
-loader3.load("models/kirjasto(3).jpg", function (texture3) { texture3.minFilter
-= THREE.NearestFilter; texture3.generateMipmaps = false; const sphereMaterial3 =
-new THREE.MeshStandardMaterial({ map: texture3, side: THREE.BackSide,
-displacementScale: -4.0, }); const sphere3 = new THREE.Mesh(panoSphereGeo,
-sphereMaterial3); sphere3.position.set(0, 0, -40); scene.add(sphere3); }); const
-loader4 = new THREE.TextureLoader(manager);
-loader4.load("models/kirjasto(4).jpg", function (texture4) { texture4.minFilter
-= THREE.NearestFilter; texture4.generateMipmaps = false; const sphereMaterial4 =
-new THREE.MeshStandardMaterial({ map: texture4, side: THREE.BackSide,
-displacementScale: -4.0, }); const sphere4 = new THREE.Mesh(panoSphereGeo,
-sphereMaterial4); sphere4.position.set(0, 0, -60); scene.add(sphere4); }); const
-loader5 = new THREE.TextureLoader(manager);
-loader5.load("models/kirjasto(4).jpg", function (texture5) { texture5.minFilter
-= THREE.NearestFilter; texture5.generateMipmaps = false; const sphereMaterial4 =
-new THREE.MeshStandardMaterial({ map: texture5, side: THREE.BackSide,
-displacementScale: -4.0, }); const sphere5 = new THREE.Mesh(panoSphereGeo,
-sphereMaterial4); sphere5.position.set(0, 0, -80); scene.add(sphere5); });

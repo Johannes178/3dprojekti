@@ -35,196 +35,95 @@
 
       import { XRControllerModelFactory } from "three/addons/webxr/XRControllerModelFactory.js";
       import { PMREMGenerator } from "/node_modules/three/src/extras/PMREMGenerator.js";
-      // import { PMREMCubeUVPacker } from "/node_modules/three/src/extras/PMREMCubeUVPacker.js";
+      let currentTextureIndex = 0; // keeps track of the current texture index
 
-      // Create the Three.js scene, camera, and renderer
-      const scene = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(
-        75,
-        window.innerWidth / window.innerHeight,
-        0.1,
-        1000
-      );
-      const renderer = new THREE.WebGLRenderer({ antialias: true });
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      document.body.appendChild(renderer.domElement);
+      // set up click event handlers for the buttons
+      document.getElementById("prevButton");
+      co.addEventListener("click", prevTexture);
+      document
+        .getElementById("nextButton")
+        .addEventListener("click", nextTexture);
 
-      // Create VR button and add it to the HTML document
-      document.body.appendChild(VRButton.createButton(renderer));
+      function prevTexture() {
+        // decrement the texture index and loop back to the end if necessary
+        currentTextureIndex--;
+        if (currentTextureIndex < 0) {
+          currentTextureIndex = 1;
+        }
 
-      // Create PMREMGenerator and PMREMCubeUVPacker for texture mapping
-      const pmremGenerator = new PMREMGenerator(renderer);
-      pmremGenerator.compileEquirectangularShader();
-      //const pmremCubeUVPacker = new PMREMCubeUVPacker(pmremGenerator.cubeLods);
+        // get the current sphere mesh and replace its texture with the previous one
+        const currentSphere = scene.children.find(
+          (child) => child.type === "Mesh"
+        );
+        const currentMaterial = currentSphere.material;
+        const currentTexture = currentMaterial.map;
+        const previousTextureIndex =
+          currentTextureIndex - 1 < 0 ? 1 : currentTextureIndex - 1;
+        const previousTexture = textures[previousTextureIndex];
+        currentTexture.dispose();
+        currentMaterial.map = previousTexture;
+        currentTextureIndex = previousTextureIndex;
+      }
 
-      // Load the initial panoramic image
-      const loader = new RGBELoader();
-      loader.setDataType(THREE.HalfFloatType);
-      loader.load("models/kirjasto(1).jpg", function (texture) {
-        texture.mapping = THREE.EquirectangularReflectionMapping;
-        const envMap = pmremGenerator.fromEquirectangular(texture).texture;
-        scene.background = envMap;
-        scene.environment = envMap;
-        texture.dispose();
-        pmremGenerator.dispose();
+      function nextTexture() {
+        // increment the texture index and loop back to the start if necessary
+        currentTextureIndex++;
+        if (currentTextureIndex > 1) {
+          currentTextureIndex = 0;
+        }
+
+        // get the current sphere mesh and replace its texture with the next one
+        const currentSphere = scene.children.find(
+          (child) => child.type === "Mesh"
+        );
+        const currentMaterial = currentSphere.material;
+        const currentTexture = currentMaterial.map;
+        const nextTextureIndex =
+          currentTextureIndex + 1 > 1 ? 0 : currentTextureIndex + 1;
+        const nextTexture = textures[nextTextureIndex];
+        currentTexture.dispose();
+        currentMaterial.map = nextTexture;
+        currentTextureIndex = nextTextureIndex;
+      }
+
+      // load the textures and create the meshes
+      const textures = [];
+      const loader = new THREE.TextureLoader();
+      loader.load("models/kirjasto(1).jpg", (texture) => {
+        texture.generateMipmaps = false;
+        textures.push(texture);
+
+        if (textures.length === 2) {
+          // both textures have loaded, create the meshes
+          const panoSphereGeo = new THREE.SphereGeometry(6, 256, 256);
+
+          for (let i = 0; i < textures.length; i++) {
+            const texture = textures[i];
+            const material = new THREE.MeshStandardMaterial({
+              map: texture,
+              side: THREE.BackSide,
+              displacementScale: -4.0,
+            });
+            const mesh = new THREE.Mesh(panoSphereGeo, material);
+            mesh.position.set(0, 0, -20 * i);
+            group.add(mesh);
+          }
+
+          // add the meshes to the scene and render
+          scene.add(group);
+          render();
+        }
       });
 
-      // Load the second panoramic image
-      loader.setDataType(THREE.FloatType);
-      loader.load("models/kirjasto(2).jpg", function (texture) {
-        texture.mapping = THREE.EquirectangularReflectionMapping;
-        const envMap = pmremGenerator.fromEquirectangular(texture).texture;
-        const cubeMap = envMap;
-        cubeMap.encoding = THREE.sRGBEncoding;
-        scene.background = cubeMap;
-        scene.environment = cubeMap;
-        texture.dispose();
-        pmremGenerator.dispose();
-        // pmremCubeUVPacker.dispose();
-      });
-
-      // Create a VR controller object and add it to the scene
-      const controller = renderer.xr.getController(0);
-      controller.addEventListener("select", onSelect);
-      scene.add(controller);
-
-      // Create a sphere geometry and add it to the scene
-      const geometry = new THREE.SphereGeometry(500, 60, 40);
-      const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
-      material.side = THREE.BackSide;
-      const sphere = new THREE.Mesh(geometry, material);
-      scene.add(sphere);
-
-      // Set the initial camera position
-      camera.position.set(0, 0, 0.1);
-
-      // Function to handle VR controller button clicks
-      function onSelect() {
-        // Remove the previous image from the scene
-        sphere.material.dispose();
-        sphere.geometry.dispose();
-        scene.remove(sphere);
-
-        // Load the next panoramic image
-        loader.load("models/kirjasto(3).jpg", function (texture) {
-          texture.mapping = THREE.EquirectangularReflectionMapping;
-          const envMap = pmremGenerator.fromEquirectangular(texture).texture;
-          //const cubeMap = pmremCubeUVPacker.pack(envMap);
-          cubeMap.encoding = THREE.sRGBEncoding;
-          // Set the texture of the sphere to the new panoramic image
-          sphere.material.map = texture;
-          sphere.material.needsUpdate = true;
-
-          // Set the texture of the environment to the new panoramic image
-          scene.background = cubeMap;
-
-          // Render the new scene
+      function render() {
+        renderer.setAnimationLoop(() => {
+          update();
           renderer.render(scene, camera);
         });
+      }
 
-        // Function to handle the VR controller button click
-        function onVRControllerClick(event) {
-          // Load the next panoramic image when the button is clicked
-          if (event.target === controller1 || event.target === controller2) {
-            // Load the next panoramic image
-            loader.load("models/kirjasto(3).jpg", function (texture) {
-              texture.mapping = THREE.EquirectangularReflectionMapping;
-              const envMap =
-                pmremGenerator.fromEquirectangular(texture).texture;
-              // const cubeMap = pmremCubeUVPacker.pack(envMap);
-              cubeMap.encoding = THREE.sRGBEncoding;
-
-              // Set the texture of the sphere to the new panoramic image
-              sphere.material.map = texture;
-              sphere.material.needsUpdate = true;
-
-              // Set the texture of the environment to the new panoramic image
-              scene.background = cubeMap;
-
-              // Render the new scene
-              renderer.render(scene, camera);
-            });
-          }
-        }
-
-        // Event listener for the VR controller button click
-        window.addEventListener("vrcontrollerdown", onVRControllerClick);
-
-        // Event listener for the VR controller button click
-        function onControllerButtonClicked(event) {
-          if (event.detail.state === "clicked") {
-            // Load the next panoramic image
-            loader.load("models/kirjasto(3).jpg", function (texture) {
-              texture.mapping = THREE.EquirectangularReflectionMapping;
-              const envMap =
-                pmremGenerator.fromEquirectangular(texture).texture;
-              //const cubeMap = pmremCubeUVPacker.pack(envMap);
-              cubeMap.encoding = THREE.sRGBEncoding;
-
-              // Update the material with the new texture
-              material.envMap = cubeMap;
-              material.needsUpdate = true;
-
-              // Dispose of the old texture and cube map
-              texture2.dispose();
-              pmremGenerator.dispose();
-              // pmremCubeUVPacker.dispose();
-
-              // Update the current texture
-              texture2 = cubeMap;
-            });
-          }
-        }
-
-        // Add the event listener to the VR controller
-        controller.addEventListener("buttondown", onControllerButtonClicked);
-
-        // Render function to update the scene
-        function render() {
-          renderer.render(scene, camera);
-        }
-
-        // Update function to handle VR controller input
-        function update() {
-          // Get the VR controller input
-          const input = renderer.vr.getController(0).getButtonState("trigger");
-
-          // If the input is clicked
-          if (input.pressed) {
-            // Load the next panoramic image
-            loader.load("models/kirjasto(3).jpg", function (texture) {
-              texture.mapping = THREE.EquirectangularReflectionMapping;
-              const envMap =
-                pmremGenerator.fromEquirectangular(texture).texture;
-              //const cubeMap = pmremCubeUVPacker.pack(envMap);
-              cubeMap.encoding = THREE.sRGBEncoding;
-
-              // Update the scene with the new texture
-              scene.environment = cubeMap;
-              scene.background = cubeMap;
-
-              // Dispose of the old texture
-              texture1.dispose();
-              texture2.dispose();
-
-              // Set the new texture as the current texture
-              texture2 = cubeMap;
-
-              // Render the updated scene
-              render();
-            });
-          }
-        }
-
-        // Start the render loop
-        function animate() {
-          renderer.setAnimationLoop(() => {
-            update();
-          });
-        }
-
-        // Call the animate function to start the render loop
-        animate();
+      function update() {
+        // update any relevant scene objects
       }
     </script>
   </body>
