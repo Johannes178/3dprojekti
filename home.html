@@ -168,41 +168,35 @@
 
         renderer.setSize(window.innerWidth, window.innerHeight);
       }
-
       function onSelectStart(event) {
         const controller = event.target;
 
-        // Check if the controller intersects with any photos
-        raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-        const intersects = raycaster.intersectObjects(group.children);
+        const intersections = getIntersections(controller);
 
-        if (intersects.length > 0) {
-          const photo = intersects[0].object;
+        if (intersections.length > 0) {
+          const intersection = intersections[0];
+          const object = intersection.object;
 
-          // Set the new photo index based on the controller direction
-          const direction = new THREE.Vector3();
-          const axis = new THREE.Vector3(0, 1, 0);
-          const angle = direction.angleTo(axis);
-          const cross = new THREE.Vector3();
-          cross.crossVectors(direction, axis);
+          if (
+            object instanceof THREE.Mesh &&
+            object.geometry instanceof THREE.SphereGeometry
+          ) {
+            // update the texture of the sphere to the next photo
+            currentPhoto = (currentPhoto + 1) % photos.length;
+            const texture = new THREE.TextureLoader().load(
+              photos[currentPhoto]
+            );
+            object.material.map = texture;
 
-          let newIndex;
-          if (cross.y > 0) {
-            newIndex = (currentPhoto + 1) % photos.length;
-          } else {
-            newIndex = (currentPhoto + photos.length - 1) % photos.length;
+            // create a new sphere with the updated texture and add it to the user's camera
+            const cameraSphere = new THREE.Mesh(
+              new THREE.SphereGeometry(1, 32, 32),
+              new THREE.MeshBasicMaterial({ map: texture })
+            );
+            cameraSphere.position.set(0, 0, -3);
+            camera.add(cameraSphere);
           }
-
-          // Load the new photo texture
-          currentPhoto = newIndex;
-          const loader = new TextureLoader();
-          loader.load(photos[currentPhoto], (texture) => {
-            photo.material.map = texture;
-            photo.material.needsUpdate = true;
-          });
         }
-
-        controller.userData.previousPosition = controller.position.clone();
       }
 
       function onSelectEnd(event) {
@@ -217,14 +211,12 @@
       }
 
       function getIntersections(controller) {
-        controller.updateMatrixWorld();
-
         tempMatrix.identity().extractRotation(controller.matrixWorld);
 
         raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
         raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
 
-        return raycaster.intersectObjects(group.children, false);
+        return raycaster.intersectObjects(group.children, true);
       }
 
       function intersectObjects(controller) {
