@@ -172,18 +172,37 @@
       function onSelectStart(event) {
         const controller = event.target;
 
-        const intersections = getIntersections(controller);
+        // Check if the controller intersects with any photos
+        raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+        const intersects = raycaster.intersectObjects(group.children);
 
-        if (intersections.length > 0) {
-          const intersection = intersections[0];
+        if (intersects.length > 0) {
+          const photo = intersects[0].object;
 
-          const object = intersection.object;
-          object.material.emissive.b = 1;
+          // Set the new photo index based on the controller direction
+          const direction = new THREE.Vector3();
+          const axis = new THREE.Vector3(0, 1, 0);
+          const angle = direction.angleTo(axis);
+          const cross = new THREE.Vector3();
+          cross.crossVectors(direction, axis);
 
-          controller.userData.selected = object;
+          let newIndex;
+          if (cross.y > 0) {
+            newIndex = (currentPhoto + 1) % photos.length;
+          } else {
+            newIndex = (currentPhoto + photos.length - 1) % photos.length;
+          }
+
+          // Load the new photo texture
+          currentPhoto = newIndex;
+          const loader = new TextureLoader();
+          loader.load(photos[currentPhoto], (texture) => {
+            photo.material.map = texture;
+            photo.material.needsUpdate = true;
+          });
         }
 
-        controller.userData.targetRayMode = event.data.targetRayMode;
+        controller.userData.previousPosition = controller.position.clone();
       }
 
       function onSelectEnd(event) {
