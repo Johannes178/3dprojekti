@@ -98,8 +98,8 @@
         sphere.position.set(0, 2, -4);
         group.add(sphere);
 
-        const textureLoader = new TextureLoader();
-        textureLoader.load(photos[currentPhoto], (texture) => {
+        const loader = new TextureLoader();
+        loader.load(photos[currentPhoto], (texture) => {
           sphere.material.map = texture;
           sphere.material.needsUpdate = true;
         });
