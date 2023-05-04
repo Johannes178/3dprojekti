@@ -7,7 +7,6 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, user-scalable=no"
     />
-    <link type="text/css" rel="stylesheet" href="main.css" />
   </head>
   <body>
     <!-- Import maps polyfill -->
@@ -31,11 +30,9 @@
       import { OrbitControls } from "three/addons/controls/OrbitControls.js";
       import { XRButton } from "three/addons/webxr/XRButton.js";
       import { XRControllerModelFactory } from "three/addons/webxr/XRControllerModelFactory.js";
-      import { TextureLoader } from "three";
 
       THREE.ColorManagement.enabled = false; // TODO: Consider enabling color management.
 
-      let container;
       let camera, scene, renderer;
       let controller1, controller2;
       let controllerGrip1, controllerGrip2;
@@ -48,8 +45,8 @@
         "models/kirjasto3.jpg",
         "models/kirjasto4.jpg",
         "models/kirjasto5.jpg",
-        "models/kirjasto1.jpg",
       ];
+      let baseReferenceSpace;
 
       const intersected = [];
       const tempMatrix = new THREE.Matrix4();
@@ -60,23 +57,24 @@
       animate();
 
       function init() {
-        container = document.createElement("div");
+        loadPhoto(photos[currentPhoto]);
+
+        let container = document.createElement("div");
         document.body.appendChild(container);
-
         scene = new THREE.Scene();
-        //scene.background = new THREE.Color( 0x808080 );
-
         camera = new THREE.PerspectiveCamera(
-          50,
+          75,
           window.innerWidth / window.innerHeight,
           0.1,
-          10
+          1000
         );
         camera.position.set(0, 1.6, 3);
 
         controls = new OrbitControls(camera, container);
         controls.target.set(0, 1.6, 0);
         controls.update();
+
+        scene.add(new THREE.HemisphereLight(0x808080, 0x606060));
 
         const light = new THREE.DirectionalLight(0xffffff);
         light.position.set(0, 6, 0);
@@ -93,16 +91,10 @@
 
         // testisphere
         const geometria = new THREE.SphereGeometry(0.5, 32, 32);
-        const material = new THREE.MeshStandardMaterial({});
+        const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
         const sphere = new THREE.Mesh(geometria, material);
         sphere.position.set(0, 2, -4);
         group.add(sphere);
-
-        const loader = new TextureLoader();
-        loader.load(photos[currentPhoto], (texture) => {
-          sphere.material.map = texture;
-          sphere.material.needsUpdate = true;
-        });
 
         //
 
@@ -110,10 +102,14 @@
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = true;
-        renderer.xr.enabled = true;
         container.appendChild(renderer.domElement);
-
         document.body.appendChild(XRButton.createButton(renderer));
+        // controllers
+        renderer.xr.enabled = true;
+        renderer.xr.addEventListener(
+          "sessionstart",
+          () => (baseReferenceSpace = renderer.xr.getReferenceSpace())
+        );
 
         // controllers
 
@@ -128,7 +124,6 @@
         scene.add(controller2);
 
         const controllerModelFactory = new XRControllerModelFactory();
-
         controllerGrip1 = renderer.xr.getControllerGrip(0);
         controllerGrip1.add(
           controllerModelFactory.createControllerModel(controllerGrip1)
@@ -140,7 +135,12 @@
           controllerModelFactory.createControllerModel(controllerGrip2)
         );
         scene.add(controllerGrip2);
+        // Set up controls
+        controls = new XRControllerModelFactory().createControllerModel(
+          renderer.xr.getController(0)
+        );
 
+        scene.add(controls);
         //
 
         const geometry = new THREE.BufferGeometry().setFromPoints([
@@ -168,6 +168,7 @@
 
         renderer.setSize(window.innerWidth, window.innerHeight);
       }
+
       function onSelectStart(event) {
         const controller = event.target;
 
@@ -175,28 +176,14 @@
 
         if (intersections.length > 0) {
           const intersection = intersections[0];
+
           const object = intersection.object;
+          object.material.emissive.b = 1;
 
-          if (
-            object instanceof THREE.Mesh &&
-            object.geometry instanceof THREE.SphereGeometry
-          ) {
-            // update the texture of the sphere to the next photo
-            currentPhoto = (currentPhoto + 1) % photos.length;
-            const texture = new THREE.TextureLoader().load(
-              photos[currentPhoto]
-            );
-            object.material.map = texture;
-
-            // create a new sphere with the updated texture and add it to the user's camera
-            const cameraSphere = new THREE.Mesh(
-              new THREE.SphereGeometry(1, 32, 32),
-              new THREE.MeshBasicMaterial({ map: texture })
-            );
-            cameraSphere.position.set(0, 0, -3);
-            camera.add(cameraSphere);
-          }
+          controller.userData.selected = object;
         }
+
+        controller.userData.targetRayMode = event.data.targetRayMode;
       }
 
       function onSelectEnd(event) {
@@ -205,18 +192,34 @@
         if (controller.userData.selected !== undefined) {
           const object = controller.userData.selected;
           object.material.emissive.b = 0;
-
+          currentPhoto = (currentPhoto + 1) % photos.length;
+          loadPhoto(photos[currentPhoto]);
           controller.userData.selected = undefined;
         }
       }
+      function loadPhoto(photos) {
+        new THREE.TextureLoader().load(photos, function (texture) {
+          const geometry = new THREE.SphereGeometry(500, 60, 40);
+          const material = new THREE.MeshBasicMaterial({
+            map: texture,
+            side: THREE.DoubleSide,
+          });
+          const sphere = new THREE.Mesh(geometry, material);
+          sphere.name = "photo";
+          sphere.scale.x = -1;
 
+          scene.add(sphere);
+        });
+      }
       function getIntersections(controller) {
+        controller.updateMatrixWorld();
+
         tempMatrix.identity().extractRotation(controller.matrixWorld);
 
         raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
         raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
 
-        return raycaster.intersectObjects(group.children, true);
+        return raycaster.intersectObjects(group.children, false);
       }
 
       function intersectObjects(controller) {

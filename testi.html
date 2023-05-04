@@ -34,96 +34,116 @@
       import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
       import { XRControllerModelFactory } from "three/addons/webxr/XRControllerModelFactory.js";
-      import { PMREMGenerator } from "/node_modules/three/src/extras/PMREMGenerator.js";
-      let currentTextureIndex = 0; // keeps track of the current texture index
 
-      // set up click event handlers for the buttons
-      document.getElementById("prevButton");
-      co.addEventListener("click", prevTexture);
-      document
-        .getElementById("nextButton")
-        .addEventListener("click", nextTexture);
+      // Initialize variables
+      let camera, scene, renderer, controls, controller1, controller2;
+      let currentPhoto = 1;
+      const photos = [
+        "models/kirjasto1.jpg",
+        "models/kirjasto2.jpg",
+        "models/kirjasto3.jpg",
+        "models/kirjasto4.jpg",
+        "models/kirjasto5.jpg",
+        "models/kirjasto1.jpg",
+      ];
+      let baseReferenceSpace;
 
-      function prevTexture() {
-        // decrement the texture index and loop back to the end if necessary
-        currentTextureIndex--;
-        if (currentTextureIndex < 0) {
-          currentTextureIndex = 1;
+      init();
+      animate();
+
+      function init() {
+        // Set up scene
+        scene = new THREE.Scene();
+
+        // Set up camera
+        camera = new THREE.PerspectiveCamera(
+          75,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          1000
+        );
+        scene.add(camera);
+
+        // Set up renderer
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.xr.enabled = true;
+        document.body.appendChild(renderer.domElement);
+        document.body.appendChild(VRButton.createButton(renderer));
+        renderer.xr.enabled = true;
+
+        initVR();
+
+        function initVR() {
+          document.body.appendChild(VRButton.createButton(renderer));
+          renderer.xr.enabled = true;
+          renderer.xr.addEventListener(
+            "sessionstart",
+            () => (baseReferenceSpace = renderer.xr.getReferenceSpace())
+          );
+
+          // controllers
+
+          controller1 = renderer.xr.getController(0);
+          controller1.addEventListener("selectstart", loadPhoto);
+          scene.add(controller1);
+
+          controller2 = renderer.xr.getController(1);
+          controller2.addEventListener("selectstart", loadPhoto);
+          scene.add(controller2);
+
+          controller1.addEventListener("selectstart", () => {
+            currentPhoto = (currentPhoto + 1) % photos.length;
+            loadPhoto(currentPhoto);
+          });
+
+          controller2.addEventListener("selectstart", () => {
+            currentPhoto = (currentPhoto + 1) % photos.length;
+            loadPhoto(currentPhoto);
+          });
+
+          renderer.xr.addEventListener("selectstart", () => {
+            currentPhoto = (currentPhoto + 1) % photos.length;
+            loadPhoto(currentPhoto);
+          });
+
+          const controllerModelFactory = new XRControllerModelFactory();
+
+          // Set up controls
+          controls = new XRControllerModelFactory().createControllerModel(
+            renderer.xr.getController(0)
+          );
         }
 
-        // get the current sphere mesh and replace its texture with the previous one
-        const currentSphere = scene.children.find(
-          (child) => child.type === "Mesh"
-        );
-        const currentMaterial = currentSphere.material;
-        const currentTexture = currentMaterial.map;
-        const previousTextureIndex =
-          currentTextureIndex - 1 < 0 ? 1 : currentTextureIndex - 1;
-        const previousTexture = textures[previousTextureIndex];
-        currentTexture.dispose();
-        currentMaterial.map = previousTexture;
-        currentTextureIndex = previousTextureIndex;
+        scene.add(controls);
+
+        // Load first photo
+        loadPhoto(photos[currentPhoto]);
       }
 
-      function nextTexture() {
-        // increment the texture index and loop back to the start if necessary
-        currentTextureIndex++;
-        if (currentTextureIndex > 1) {
-          currentTextureIndex = 0;
-        }
+      function loadPhoto(index) {
+        const photo = photos[index];
 
-        // get the current sphere mesh and replace its texture with the next one
-        const currentSphere = scene.children.find(
-          (child) => child.type === "Mesh"
-        );
-        const currentMaterial = currentSphere.material;
-        const currentTexture = currentMaterial.map;
-        const nextTextureIndex =
-          currentTextureIndex + 1 > 1 ? 0 : currentTextureIndex + 1;
-        const nextTexture = textures[nextTextureIndex];
-        currentTexture.dispose();
-        currentMaterial.map = nextTexture;
-        currentTextureIndex = nextTextureIndex;
-      }
+        // Remove previous photo
+        scene.remove(scene.children.find((obj) => obj.name === "photo"));
 
-      // load the textures and create the meshes
-      const textures = [];
-      const loader = new THREE.TextureLoader();
-      loader.load("models/kirjasto(1).jpg", (texture) => {
-        texture.generateMipmaps = false;
-        textures.push(texture);
-
-        if (textures.length === 2) {
-          // both textures have loaded, create the meshes
-          const panoSphereGeo = new THREE.SphereGeometry(6, 256, 256);
-
-          for (let i = 0; i < textures.length; i++) {
-            const texture = textures[i];
-            const material = new THREE.MeshStandardMaterial({
-              map: texture,
-              side: THREE.BackSide,
-              displacementScale: -4.0,
-            });
-            const mesh = new THREE.Mesh(panoSphereGeo, material);
-            mesh.position.set(0, 0, -20 * i);
-            group.add(mesh);
-          }
-
-          // add the meshes to the scene and render
-          scene.add(group);
-          render();
-        }
-      });
-
-      function render() {
-        renderer.setAnimationLoop(() => {
-          update();
-          renderer.render(scene, camera);
+        // Load new photo
+        new THREE.TextureLoader().load(photo, function (texture) {
+          const geometry = new THREE.SphereGeometry(500, 60, 40);
+          const material = new THREE.MeshBasicMaterial({
+            map: texture,
+            side: THREE.BackSide,
+          });
+          const sphere = new THREE.Mesh(geometry, material);
+          sphere.name = "photo";
+          scene.add(sphere);
         });
       }
 
-      function update() {
-        // update any relevant scene objects
+      function animate() {
+        renderer.setAnimationLoop(() => {
+          renderer.render(scene, camera);
+        });
       }
     </script>
   </body>
