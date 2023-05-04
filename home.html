@@ -30,15 +30,12 @@
       import { OrbitControls } from "three/addons/controls/OrbitControls.js";
       import { XRButton } from "three/addons/webxr/XRButton.js";
       import { XRControllerModelFactory } from "three/addons/webxr/XRControllerModelFactory.js";
-
-      THREE.ColorManagement.enabled = false; // TODO: Consider enabling color management.
-
       let camera, scene, renderer;
       let controller1, controller2;
       let controllerGrip1, controllerGrip2;
 
       let raycaster;
-      let currentPhoto = 1;
+      let currentPhoto = 0;
       const photos = [
         "models/kirjasto1.jpg",
         "models/kirjasto2.jpg",
@@ -99,7 +96,10 @@
         //
 
         renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.outputColorSpace = THREE.SRGBColorSpace; // optional with post-processing
+        THREE.ColorManagement.enabled = true;
         renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.outputColorSpace;
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = true;
         container.appendChild(renderer.domElement);
