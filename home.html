@@ -52,9 +52,14 @@
       init();
       animate();
 
+      /**
+       * Initializes the 3D scene
+       */
       function init() {
+        // Loads the current photo into the webview and triggers the load event. This is called by the ajax
         loadPhoto(photos[currentPhoto]);
 
+        // Creates and initializes THREE. Scenes and THREE. Famorsors
         let container = document.createElement("div");
         document.body.appendChild(container);
         scene = new THREE.Scene();
@@ -64,6 +69,7 @@
           0.1,
           1000
         );
+        // This is the implementation of Orbit. js's scene. add ()
         camera.position.set(0, 1.6, 3);
 
         controls = new OrbitControls(camera, container);
@@ -72,6 +78,7 @@
 
         scene.add(new THREE.HemisphereLight(0x808080, 0x606060));
 
+        // Adds a directional light to the scene
         const light = new THREE.DirectionalLight(0xffffff);
         light.position.set(0, 6, 0);
         light.castShadow = true;
@@ -82,6 +89,7 @@
         light.shadow.mapSize.set(4096, 4096);
         scene.add(light);
 
+        // Creates a group and adds it to the scene. This is called when the scene is created
         group = new THREE.Group();
         scene.add(group);
 
@@ -165,11 +173,12 @@
 
         raycaster = new THREE.Raycaster();
 
-        //
-
         window.addEventListener("resize", onWindowResize);
       }
 
+      /**
+       * Updates aspect ratio and resizes the renderer to match the window size. This is called on window resize
+       */
       function onWindowResize() {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
@@ -180,19 +189,27 @@
       let isSelectingSphere1 = false;
       let isSelectingSphere2 = false;
 
+      /**
+       * Called when user starts selecting an object. This is used to set ray mode and object's material
+       *
+       * @param event - Event that triggered this
+       */
       function onSelectStart(event) {
         const controller = event.target;
 
         const intersections = getIntersections(controller);
 
+        // This method is called when the user selects a sphere
         if (intersections.length > 0) {
           const intersection = intersections[0];
 
           const object = intersection.object;
           object.material.emissive.b = 1;
+          // This method is called when the object is selected.
           if (object.name === "sphere1") {
             isSelectingSphere1 = true;
             isSelectingSphere2 = false;
+            // If the object is sphere1 or sphere2
           } else if (object.name === "sphere2") {
             isSelectingSphere1 = false;
             isSelectingSphere2 = true;
@@ -204,15 +221,23 @@
         controller.userData.targetRayMode = event.data.targetRayMode;
       }
 
+      /**
+       * Called when user ends selection. Moves the selected object to the next photo
+       *
+       * @param event - The event that triggered
+       */
       function onSelectEnd(event) {
         const controller = event.target;
 
+        // Load the selected photo from the selected object.
         if (controller.userData.selected !== undefined) {
           const object = controller.userData.selected;
           object.material.emissive.b = 0;
 
+          // This method is used to select the current photo.
           if (isSelectingSphere1) {
             currentPhoto = (currentPhoto + 1) % photos.length;
+            // Get the current photo from the current photo.
           } else if (isSelectingSphere2) {
             currentPhoto = (currentPhoto - 1 + photos.length) % photos.length;
           }
@@ -223,7 +248,15 @@
         isSelectingSphere1 = false;
         isSelectingSphere2 = false;
       }
+      /**
+       * Loads photos into the scene. Photos are added to the scene as spheres
+       *
+       * @param photos - Array of photos to
+       */
       function loadPhoto(photos) {
+        /**
+         * @param texture
+         */
         new THREE.TextureLoader().load(photos, function (texture) {
           const geometry = new THREE.SphereGeometry(500, 60, 40);
           const material = new THREE.MeshBasicMaterial({
@@ -237,6 +270,13 @@
           scene.add(sphere);
         });
       }
+      /**
+       * Returns an array of objects that intersect the ray with the group. This is useful for detecting collisions between a group and a controller
+       *
+       * @param controller - The controller to check for collisions with
+       *
+       * @return { Array } An array of objects that intersect the
+       */
       function getIntersections(controller) {
         controller.updateMatrixWorld();
 
@@ -248,18 +288,28 @@
         return raycaster.intersectObjects(group.children, false);
       }
 
+      /**
+       * Intersects objects and adds them to intersected array. Will not highlight in mobile
+       *
+       * @param controller - Object that is acting as controller
+       *
+       * @return { Object } Intersection object or null if no
+       */
       function intersectObjects(controller) {
         // Do not highlight in mobile-ar
 
+        // If the user is on screen the user can t use the screen mode.
         if (controller.userData.targetRayMode === "screen") return;
 
         // Do not highlight when already selected
 
+        // If selected is set to true the user data is selected
         if (controller.userData.selected !== undefined) return;
 
         const line = controller.getObjectByName("line");
         const intersections = getIntersections(controller);
 
+        // This method is used to set the scale of the intersection of the intersections.
         if (intersections.length > 0) {
           const intersection = intersections[0];
 
@@ -273,7 +323,11 @@
         }
       }
 
+      /**
+       * Clears the intersected objects. This is used to make sure they don't collide with the
+       */
       function cleanIntersected() {
+        // Remove all objects from the intersected list.
         while (intersected.length) {
           const object = intersected.pop();
           object.material.emissive.r = 0;
@@ -282,10 +336,16 @@
 
       //
 
+      /**
+       * Starts the animation loop. This is called by the renderer every time it is updated
+       */
       function animate() {
         renderer.setAnimationLoop(render);
       }
 
+      /**
+       * Renders the scene and camera. Cleans intersected objects before rendering. Then calls intersectObjects to intersect the two
+       */
       function render() {
         cleanIntersected();
 
